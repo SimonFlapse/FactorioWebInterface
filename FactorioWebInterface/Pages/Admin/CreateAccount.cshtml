@@ -1,0 +1,64 @@
+﻿@page
+@model FactorioWebInterface.Pages.Admin.CreateAccountModel
+@{
+    ViewData["Title"] = "Create New Account";
+}
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+}
+
+<div class="container">
+
+    <h2 class="title is-2">Create New Account</h2>
+
+    <div class="columns">
+        <div class="column is-4">
+                <form method="post">
+                    <h4 class="title is-4">Create User</h4>
+                    <hr />
+                    <div asp-validation-summary="All" class="has-text-danger"></div>
+                    <div class="field">
+                        <label asp-for="Input.UserName" class="label"></label>
+                        <div class="control">
+                            <input asp-for="Input.UserName" class="input" />
+                        </div>
+                        <span asp-validation-for="Input.UserName" class="help is-danger"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="Input.Password" class="label"></label>
+                        <div class="control">
+                            <input asp-for="Input.Password" class="input" />
+                        </div>
+                        <span asp-validation-for="Input.Password" class="help is-danger"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="Input.ConfirmPassword" class="label"></label>
+                        <div class="control">
+                            <input asp-for="Input.ConfirmPassword" class="input" />
+                        </div>
+                        <span asp-validation-for="Input.ConfirmPassword" class="help is-danger"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="Input.Role" class="label"></label>
+                        <div class="control">
+                            @foreach (var item in Model.Roles)
+                            {
+                                <input asp-for="Input.Role" type="radio" value="@item" /> @item
+                            }
+                        </div>
+                        <span asp-validation-for="Input.Role" class="help is-danger"></span>
+                    </div>
+                    <button type="submit" asp-page-handler="CreateAccount" class="button is-link">Create new account</button>
+                </form>
+
+            @if (Model.AccountCreated)
+            {
+                <hr />
+                <p>Account created</p>
+            }
+        </div>
+    </div>
+</div>
+
+
