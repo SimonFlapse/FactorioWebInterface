@@ -1,9 +1,9 @@
 ﻿@using Microsoft.AspNetCore.Identity;
 @using FactorioWebInterface.Data;
-@inject UserManager<ApplicationUser> userManger;
+@inject UserManager<ApplicationUser> userManager;
 
 @{
-    var user = await userManger.GetUserAsync(User);
+    var user = await userManager.GetUserAsync(User);
 }
 
 <nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
@@ -45,6 +45,11 @@
                             else
                             {
                                 <a class="navbar-item @(page == "/admin/account" ? "has-text-info" : "")" asp-page="/Admin/Account" title="Account">@user.UserName</a>
+                                if (await userManager.IsInRoleAsync(user, Constants.RootRole))
+                                {
+                                    <a class="navbar-item @(page == "/admin/account" ? "has-text-info" : "")" asp-page="/Admin/CreateAccount" title="Create New Account">New Account</a>
+                                }
+
                                 <a class="navbar-item @(page == "/admin/signout" ? "has-text-info" : "")" asp-page="/Admin/SignOut" title="Sign out">Sign out</a>
                             }
                         }
