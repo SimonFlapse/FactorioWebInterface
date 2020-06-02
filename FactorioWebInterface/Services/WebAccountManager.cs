@@ -12,11 +12,15 @@ namespace FactorioWebInterface.Services
         Task<ApplicationUser> FindByNameAsync(string username);
         Task<ApplicationUser> FindByIdAsync(string id);
         Task<ApplicationUser> GetUserAsync(ClaimsPrincipal user);
-        Task CreateAccountAsync(string username, string password, string[] roles);
-        Task ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword);
-        Task AddRoleAsync(ApplicationUser user, string role);
-        Task RemoveRoleAsync(ApplicationUser user, string role);
-        Task SuspendAccountAsync(ApplicationUser user, bool suspended = true);
+        Task<bool> IsInRoleAsync(ApplicationUser user, string role);
+        Task<IdentityResult> CreateAccountAsync(string username, string password, string[] roles);
+        Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword);
+        Task<IdentityResult> AddRoleAsync(ApplicationUser user, string role);
+        Task<IdentityResult> AddRolesAsync(ApplicationUser user, string[] roles);
+        Task<IdentityResult> RemoveRoleAsync(ApplicationUser user, string role);
+        Task<IdentityResult> SuspendAccountAsync(ApplicationUser user, bool suspended = true);
+        Task<IdentityResult> DeleteAccountAsync(ApplicationUser user);
+        Task<IdentityResult> ChangeUsernameAsync(ApplicationUser user, string username);
     }
 
     public class WebAccountManager : IWebAccountManager
@@ -34,19 +38,37 @@ namespace FactorioWebInterface.Services
             _logger = logger;
         }
 
-        public async Task AddRoleAsync(ApplicationUser user, string role)
+        public async Task<IdentityResult> AddRoleAsync(ApplicationUser user, string role)
         {
-            await _userManager.AddToRoleAsync(user, role);
-            _logger.LogInformation("The user: " + user.UserName + " has been added to the role: " + role);
+            var result = await _userManager.AddToRoleAsync(user, role);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} has been added to the role: {role}", user.UserName, role);
+            }
+            return result;
         }
 
-        public async Task ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword)
+        public async Task<IdentityResult> AddRolesAsync(ApplicationUser user, string[] roles)
         {
-            await _userManager.ChangePasswordAsync(user, oldPassword, newPassword);
-            _logger.LogInformation("The user: " + user.UserName + " has changed their password");
+            var result = await _userManager.AddToRolesAsync(user, roles);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} has been added to {roles}", user.UserName, roles);
+            }
+            return result;
         }
 
-        public async Task CreateAccountAsync(string username, string password, string[] roles)
+        public async Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword)
+        {
+            var result = await _userManager.ChangePasswordAsync(user, oldPassword, newPassword);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} has changed their password", user.UserName);
+            }
+            return result;
+        }
+
+        public async Task<IdentityResult> CreateAccountAsync(string username, string password, string[] roles)
         {
             var id = Guid.NewGuid().ToString();
             var user = new ApplicationUser()
@@ -58,12 +80,24 @@ namespace FactorioWebInterface.Services
             var result = await _userManager.CreateAsync(user, password);
             if (!result.Succeeded)
             {
-                _logger.LogError("User account couldn't be created");
+                await CancelAccountCreationAsync(user);
+                return result;
             }
-            foreach (string role in roles) {
-                await AddRoleAsync(user, role);
+
+            result = await AddRolesAsync(user, roles);
+            if (!result.Succeeded)
+            {
+                await CancelAccountCreationAsync(user);
+                return result;
             }
-            _logger.LogInformation("User account created with username: " + username + " and id: " + id);
+            _logger.LogInformation("User account created with username: {username} and id: {id}", username, id);
+            return result;
+        }
+
+        private async Task<IdentityResult> CancelAccountCreationAsync(ApplicationUser user)
+        {
+            _logger.LogError("User account couldn't be created");
+            return await DeleteAccountAsync(user);
         }
 
         public async Task<ApplicationUser> FindByIdAsync(string id)
@@ -81,17 +115,50 @@ namespace FactorioWebInterface.Services
             return await _userManager.GetUserAsync(user);
         }
 
-        public async Task RemoveRoleAsync(ApplicationUser user, string role)
+        public async Task<bool> IsInRoleAsync(ApplicationUser user, string role)
         {
-            await _userManager.RemoveFromRoleAsync(user, role);
-            _logger.LogInformation("The user: " + user.UserName + " has been removed from the role: " + role);
+            return await _userManager.IsInRoleAsync(user, role);
         }
 
-        public async Task SuspendAccountAsync(ApplicationUser user, bool suspended = true)
+        public async Task<IdentityResult> RemoveRoleAsync(ApplicationUser user, string role)
+        {
+            var result = await _userManager.RemoveFromRoleAsync(user, role);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} has been removed from {role}", user.UserName, role);
+            }
+            return result;
+        }
+
+        public async Task<IdentityResult> SuspendAccountAsync(ApplicationUser user, bool suspended = true)
         {
             user.Suspended = suspended;
-            await _userManager.UpdateAsync(user);
-            _logger.LogInformation("The user: " + user.UserName + " has been suspended");
+            var result = await _userManager.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} has been suspended", user.UserName);
+            }
+            return result;
+        }
+
+        public async Task<IdentityResult> DeleteAccountAsync(ApplicationUser user)
+        {
+            var result = await _userManager.DeleteAsync(user);
+            if (result.Succeeded)
+            {
+                _logger.LogWarning("{username} has been deleted", user.UserName);
+            }
+            return result;
+        }
+
+        public async Task<IdentityResult> ChangeUsernameAsync(ApplicationUser user, string username)
+        {
+            var result = await _userManager.SetUserNameAsync(user, username);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("{username} is now known as {newusername}", user.UserName, username);
+            }
+            return result;
         }
     }
 }

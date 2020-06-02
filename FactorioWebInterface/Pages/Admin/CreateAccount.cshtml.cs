@@ -12,21 +12,18 @@ using System.Threading.Tasks;
 
 namespace FactorioWebInterface.Pages.Admin
 {
-    [Authorize(Roles = Constants.RootRole)]
     public class CreateAccountModel : PageModel
     {
-        private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IWebAccountManager _accountManager;
         private readonly ILogger<CreateAccountModel> _logger;
+        private const string sessionUrl = "createaccount";
 
         public CreateAccountModel(
             IWebAccountManager accountManager,
-            SignInManager<ApplicationUser> signInManager,
             ILogger<CreateAccountModel> logger
             )
         {
             _accountManager = accountManager;
-            _signInManager = signInManager;
             _logger = logger;
         }
 
@@ -63,10 +60,9 @@ namespace FactorioWebInterface.Pages.Admin
         {
             var user = await _accountManager.GetUserAsync(User);
 
-            if (user == null || user.Suspended)
+            if (!await IsAuthorized(user))
             {
-                HttpContext.Session.SetString("returnUrl", "account");
-                return RedirectToPage("signIn");
+                return UnauthorizedRedirect();
             }
 
             AccountCreated = accountCreated;
@@ -78,15 +74,14 @@ namespace FactorioWebInterface.Pages.Admin
         {
             var user = await _accountManager.GetUserAsync(User);
 
-            if (user == null || user.Suspended)
+            if (!await IsAuthorized(user))
             {
-                HttpContext.Session.SetString("returnUrl", "account");
-                return RedirectToPage("signIn");
+                return UnauthorizedRedirect();
             }
 
-            await _accountManager.CreateAccountAsync(Input.UserName, Input.Password, new string[]{Input.Role});
+            var result = await _accountManager.CreateAccountAsync(Input.UserName, Input.Password, new string[]{Input.Role});
 
-            /*if (!result.Succeeded)
+            if (!result.Succeeded)
             {
                 foreach (var error in result.Errors)
                 {
@@ -94,13 +89,24 @@ namespace FactorioWebInterface.Pages.Admin
                 }
 
                 return Page();
-            }*/
-
-            //await _signInManager.SignInAsync(user, isPersistent: false);
-
-            //_logger.LogInformation($"User {user.UserName} created password");
+            }
 
             return RedirectToPage(new { AccountCreated = true });
+        }
+
+        private async Task<bool> IsAuthorized(ApplicationUser user)
+        {
+            if (user == null || user.Suspended || !await _accountManager.IsInRoleAsync(user, Constants.RootRole))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        private IActionResult UnauthorizedRedirect()
+        {
+            HttpContext.Session.SetString("returnUrl", sessionUrl);
+            return RedirectToPage("signIn");
         }
     }
 }
