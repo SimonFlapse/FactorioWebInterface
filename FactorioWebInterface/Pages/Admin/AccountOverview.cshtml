@@ -1,0 +1,53 @@
+﻿@page
+@model FactorioWebInterface.Pages.Admin.AccountOverviewModel
+@{
+    ViewData["Title"] = "Account Overview";
+}
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+}
+
+<div class="container">
+
+    <h2 class="title is-2">Account Overview</h2>
+
+    <div class="columns">
+        <div class="column is-4">
+            <form method="post">
+                <h4 class="title is-4">Create User</h4>
+                <hr />
+                <div asp-validation-summary="All" class="has-text-danger"></div>
+                <div class="field">
+                    <label asp-for="Input.UserName" class="label"></label>
+                    <div class="control">
+                        <input asp-for="Input.UserName" class="input" disabled />
+                    </div>
+                    <span asp-validation-for="Input.UserName" class="help is-danger"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Input.Roles" class="label"></label>
+                    <div class="control">
+                        @foreach (var item in Model.AccountRoles)
+                        {
+                            <input asp-for="Input.Roles" type="checkbox" value="@item" disabled /> @item
+                        }
+                    </div>
+                    <span asp-validation-for="Input.Roles" class="help is-danger"></span>
+                </div>
+                <button type="submit" asp-page-handler="UpdateAccount" class="button is-link">Update account</button>
+            </form>
+            <form method="post">
+                <button type ="submit" asp-page-handler="ResetPassword" class="button is-link">Reset password</button>
+            </form>
+
+            @if (Model.PasswordUpdated)
+            {
+                <hr />
+                <p>Password updated</p>
+            }
+        </div>
+    </div>
+</div>
+
+

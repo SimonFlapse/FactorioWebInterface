@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -12,6 +14,7 @@ namespace FactorioWebInterface.Services
         Task<ApplicationUser> FindByNameAsync(string username);
         Task<ApplicationUser> FindByIdAsync(string id);
         Task<ApplicationUser> GetUserAsync(ClaimsPrincipal user);
+        List<ApplicationUser> GetUsers();
         Task<bool> IsInRoleAsync(ApplicationUser user, string role);
         Task<IdentityResult> CreateAccountAsync(string username, string password, string[] roles);
         Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword);
@@ -113,6 +116,11 @@ namespace FactorioWebInterface.Services
         public async Task<ApplicationUser> GetUserAsync(ClaimsPrincipal user)
         {
             return await _userManager.GetUserAsync(user);
+        }
+
+        public List<ApplicationUser> GetUsers()
+        {
+            return _userManager.Users.ToList();
         }
 
         public async Task<bool> IsInRoleAsync(ApplicationUser user, string role)
