@@ -1,4 +1,5 @@
 ﻿using FactorioWebInterface.Data;
+using FactorioWebInterface.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -15,42 +16,66 @@ namespace FactorioWebInterface.Pages.Admin
     public class AccountOverviewModel : PageModel
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IWebAccountManager _accountManager;
         private readonly ILogger<AccountModel> _logger;
 
         public AccountOverviewModel(
-            UserManager<ApplicationUser> userManager,
+            IWebAccountManager accountManager,
             SignInManager<ApplicationUser> signInManager,
             ILogger<AccountModel> logger
             )
         {
-            _userManager = userManager;
+            _accountManager = accountManager;
             _signInManager = signInManager;
             _logger = logger;
         }
 
-        public string UserName { get; set; } = default!;
-        public bool HasPassword { get; set; }
-        public bool PasswordUpdated { get; set; }
+        public ApplicationUser ManagingUser { get; set; }
+        public string? GeneratedPassword { get; set; }
 
-        public string[] AccountRoles { get; set; } = { Constants.AdminRole, Constants.RootRole };
+        public class AccountRole
+        {
+            public string Role { get; set; }
+
+            public bool IsSelected { get; set; } = false;
+        }
 
         [BindProperty]
         public InputModel Input { get; set; } = default!;
 
         public class InputModel
         {
+            public ApplicationUser User { get; set; } = default!;
+
             [DataType(DataType.Text)]
             [Display(Name = "Username")]
             public string UserName { get; set; } = default!;
 
             [Display(Name = "Select role")]
-            public List<string> Roles { get; set; } = new List<string>{Constants.AdminRole};
+            public List<AccountRole> Roles { get; } = GenerateAccountRoleList();
+
+            private static List<AccountRole> GenerateAccountRoleList()
+            {
+                var adminRole = new AccountRole
+                {
+                    Role = Constants.AdminRole
+                };
+                var rootRole = new AccountRole
+                {
+                    Role = Constants.RootRole
+                };
+                return new List<AccountRole>() { adminRole, rootRole };
+            }
         }
 
-        public async Task<IActionResult> OnGetAsync(bool passwordUpdated)
+        public async Task<bool> IsInRole(ApplicationUser user, string role)
         {
-            var user = await _userManager.GetUserAsync(User);
+            return await _accountManager.IsInRoleAsync(user, role);
+        }
+
+        public async Task<IActionResult> OnGetAsync(string userId, string generatedPassword)
+        {
+            var user = await _accountManager.GetUserAsync(User);
 
             if (user == null || user.Suspended)
             {
@@ -58,81 +83,37 @@ namespace FactorioWebInterface.Pages.Admin
                 return RedirectToPage("signIn");
             }
 
-            UserName = user.UserName;
+            ManagingUser = await _accountManager.FindByIdAsync(userId);
 
-            HasPassword = await _userManager.HasPasswordAsync(user);
-            PasswordUpdated = passwordUpdated;
+            GeneratedPassword = generatedPassword;
 
             return Page();
         }
 
-        public async Task<IActionResult> OnPostCreatePasswordAsync()
-        {
-            var user = await _userManager.GetUserAsync(User);
-
-            if (user == null || user.Suspended)
-            {
-                HttpContext.Session.SetString("returnUrl", "account");
-                return RedirectToPage("signIn");
-            }
-
-            HasPassword = await _userManager.HasPasswordAsync(user);
-
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
-            if (HasPassword)
-            {
-                return Page();
-            }
-
-            /*var result = await _userManager.AddPasswordAsync(user, Input.Password);
-
-            if (!result.Succeeded)
-            {
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError(string.Empty, error.Description);
-                }
-
-                return Page();
-            }*/
-
-            await _signInManager.SignInAsync(user, isPersistent: false);
-
-            _logger.LogInformation($"User {user.UserName} created password");
-
-            return RedirectToPage(new { PasswordUpdated = true });
-        }
-
         public async Task<IActionResult> OnPostAsync(string userId)
         {
-            var user = await _userManager.GetUserAsync(User);
+            var user = await _accountManager.GetUserAsync(User);
             if (user == null || user.Suspended)
             {
                 HttpContext.Session.SetString("returnUrl", "accountoverview");
                 return RedirectToPage("signIn");
             }
 
-            var managingUser = await _userManager.FindByIdAsync(userId);
+            ManagingUser = await _accountManager.FindByIdAsync(userId);
 
-            UserName = managingUser.UserName;
-            await PopulateInputModel(managingUser);
             return Page();
         }
 
-        private async Task PopulateInputModel(ApplicationUser user)
+        private void PopulateInputModel(ApplicationUser user)
         {
+            Input.User = user;
             Input.UserName = user.UserName;
-            var test = await _userManager.GetRolesAsync(user);
-            Input.Roles = test.ToList();
         }
 
-        public async Task<IActionResult> OnPostUpdatePasswordAsync()
+        public async Task<IActionResult> OnPostUpdateAccountAsync()
         {
-            var user = await _userManager.GetUserAsync(User);
+
+            var user = await _accountManager.GetUserAsync(User);
 
             if (user == null || user.Suspended)
             {
@@ -140,35 +121,78 @@ namespace FactorioWebInterface.Pages.Admin
                 return RedirectToPage("signIn");
             }
 
-            HasPassword = await _userManager.HasPasswordAsync(user);
+            if (!ModelState.IsValid)
+            {
+                return Page();
+            }
+
+            if (Input.UserName != Input.User.UserName)
+            {
+                await _accountManager.ChangeUsernameAsync(Input.User, Input.UserName);
+            }
+            foreach (var role in Input.Roles)
+            {
+                var inRole = await _accountManager.IsInRoleAsync(Input.User, role.Role);
+                if (role.IsSelected && inRole)
+                {
+                    break;
+                }
+
+                if (role.IsSelected && !inRole)
+                {
+                    var result =  await _accountManager.AddRoleAsync(Input.User, role.Role);
+                    if (!result.Succeeded)
+                    {
+                        foreach (var error in result.Errors)
+                        {
+                            ModelState.AddModelError(string.Empty, error.Description);
+                        }
+
+                        return Page();
+                    }
+                    break;
+                }
+
+                if (!role.IsSelected && inRole)
+                {
+                    var result = await _accountManager.RemoveRoleAsync(Input.User, role.Role);
+                    if (!result.Succeeded)
+                    {
+                        foreach (var error in result.Errors)
+                        {
+                            ModelState.AddModelError(string.Empty, error.Description);
+                        }
+
+                        return Page();
+                    }
+                }
+            }
+
+            _logger.LogInformation($"The account {UserName} has been updated");
+
+            return RedirectToPage(new {UserId = Input.User.Id, PasswordReset = false});
+        }
+
+        public async Task<IActionResult> OnPostResetPasswordAsync()
+        {
+            var user = await _accountManager.GetUserAsync(User);
+
+            if (user == null || user.Suspended)
+            {
+                HttpContext.Session.SetString("returnUrl", "account");
+                return RedirectToPage("signIn");
+            }
 
             if (!ModelState.IsValid)
             {
                 return Page();
             }
 
-            if (!HasPassword)
-            {
-                return Page();
-            }
-
-            /*var result = await _userManager.ChangePasswordAsync(user, Input.CurrentPassword, Input.Password);
-
-            if (!result.Succeeded)
-            {
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError(string.Empty, error.Description);
-                }
-
-                return Page();
-            }*/
-
-            await _signInManager.SignInAsync(user, isPersistent: false);
+            var password = await _accountManager.ResetPasswordAsync(user);
 
             _logger.LogInformation($"User {user.UserName} changed password");
 
-            return RedirectToPage(new { PasswordUpdated = true });
+            return RedirectToPage(new { Password = true });
         }
     }
 }

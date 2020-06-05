@@ -18,12 +18,14 @@ namespace FactorioWebInterface.Services
         Task<bool> IsInRoleAsync(ApplicationUser user, string role);
         Task<IdentityResult> CreateAccountAsync(string username, string password, string[] roles);
         Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword);
+        Task<IList<string>> GetRolesAsync(ApplicationUser user);
         Task<IdentityResult> AddRoleAsync(ApplicationUser user, string role);
         Task<IdentityResult> AddRolesAsync(ApplicationUser user, string[] roles);
         Task<IdentityResult> RemoveRoleAsync(ApplicationUser user, string role);
         Task<IdentityResult> SuspendAccountAsync(ApplicationUser user, bool suspended = true);
         Task<IdentityResult> DeleteAccountAsync(ApplicationUser user);
         Task<IdentityResult> ChangeUsernameAsync(ApplicationUser user, string username);
+        Task<string> ResetPasswordAsync(ApplicationUser user);
     }
 
     public class WebAccountManager : IWebAccountManager
@@ -167,6 +169,24 @@ namespace FactorioWebInterface.Services
                 _logger.LogInformation("{username} is now known as {newusername}", user.UserName, username);
             }
             return result;
+        }
+
+        public async Task<IList<string>> GetRolesAsync(ApplicationUser user)
+        {
+            return await _userManager.GetRolesAsync(user);
+        }
+
+        //Todo: Password reset page, and sending this token to the user. E.g via email or copy-pasted
+        public async Task<string> ResetPasswordAsync(ApplicationUser user)
+        {
+            var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var generatedPassword = Guid.NewGuid().ToString();
+            var result = await _userManager.ResetPasswordAsync(user, resetToken, generatedPassword);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation("The password of {username} has been reset", user.UserName);
+            }
+            return generatedPassword;
         }
     }
 }

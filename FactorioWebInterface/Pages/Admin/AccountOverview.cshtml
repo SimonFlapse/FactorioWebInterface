@@ -21,30 +21,35 @@
                 <div class="field">
                     <label asp-for="Input.UserName" class="label"></label>
                     <div class="control">
-                        <input asp-for="Input.UserName" class="input" disabled />
+                        <input asp-for="Input.UserName" class="input" />
                     </div>
                     <span asp-validation-for="Input.UserName" class="help is-danger"></span>
                 </div>
                 <div class="field">
                     <label asp-for="Input.Roles" class="label"></label>
                     <div class="control">
-                        @foreach (var item in Model.AccountRoles)
+                        @for (var i = 0; i < Model.Input.Roles.Count(); i++)
                         {
-                            <input asp-for="Input.Roles" type="checkbox" value="@item" disabled /> @item
+                            <input asp-for="Input.Roles[i].IsSelected" type="checkbox" checked="@await Model.IsInRole(Model.Input.User, Model.Input.Roles[i].Role)" /> @Model.Input.Roles[i].Role<br />
                         }
                     </div>
                     <span asp-validation-for="Input.Roles" class="help is-danger"></span>
                 </div>
                 <button type="submit" asp-page-handler="UpdateAccount" class="button is-link">Update account</button>
             </form>
+            <hr />
             <form method="post">
-                <button type ="submit" asp-page-handler="ResetPassword" class="button is-link">Reset password</button>
+                <button type="submit" asp-page-handler="ResetPassword" class="button is-link">Reset password</button>
             </form>
 
-            @if (Model.PasswordUpdated)
+            @if (Model.GeneratedPassword != null && Model.GeneratedPassword.Length > 0)
             {
                 <hr />
-                <p>Password updated</p>
+                <p>New password generated:</p>
+                <br />
+                <p>@Model.GeneratedPassword</p>
+                <br />
+                <p>Please advice recipient to change password ASAP</p>
             }
         </div>
     </div>
